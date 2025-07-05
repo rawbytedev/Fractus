@@ -1,0 +1,20 @@
+{
+    "schemaID":"",
+    "version":"1",
+    "fields":[
+        {
+            "tag":1,
+            "name":"user_id",
+            "type":"Hash64",
+            "lenght":8,
+            "required":true
+        },
+         {
+            "tag":2,
+            "name":"pass",
+            "type":"Hash64",
+            "lenght":8,
+            "required":true
+        }
+    ]
+}
