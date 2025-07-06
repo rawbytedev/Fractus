@@ -19,6 +19,7 @@ func buildHotBitmap(tags []uint16) byte {
 }
 
 // EncodeRecord packs fields into DBFlat bytes
+// This is to be removed; No optimization
 func EncodeRecord(schemaID uint64, hotTags []uint16, fields []FieldValue) ([]byte, error) {
 	// 1) Sort fields by Tag for canonical bytes
 	sort.Slice(fields, func(i, j int) bool { return fields[i].Tag < fields[j].Tag })
@@ -91,51 +92,67 @@ func EncodeRecord(schemaID uint64, hotTags []uint16, fields []FieldValue) ([]byt
 
 // Testing
 type Encoder struct {
-	headerBuf []byte
-	vtBuf     []byte
-	dataBuf   []byte
-	fieldBuf  []byte   // for per-field varints
-	offsets   []uint32 //reused
+	headerBuf   []byte
+	compressed  []byte
+	vtBuf       []byte
+	dataBuf     []byte
+	fieldBuf    []byte   // for per-field varints
+	offsets     []uint32 //reused
+	out         []byte
+	zeroPadding [8]byte
+	tmpfields   []FieldValue
 }
 
 func (e *Encoder) EncodeRecord(schemaID uint64, hotTags []uint16, fields []FieldValue) ([]byte, error) {
-	sort.Slice(fields, func(i, j int) bool { return fields[i].Tag < fields[j].Tag })
+	if cap(e.tmpfields) < len(fields) {
+		e.tmpfields = make([]FieldValue, len(fields))
+	} else {
+		e.tmpfields = e.tmpfields[:len(fields)]
+	}
+	copy(e.tmpfields, fields)
+	if !isSortedByTag(e.tmpfields) {
+		sort.Slice(e.tmpfields, func(i, j int) bool { return e.tmpfields[i].Tag < e.tmpfields[j].Tag })
+	}
 
 	// Reset buffers
 	e.headerBuf = e.headerBuf[:0]
 	e.vtBuf = e.vtBuf[:0]
 	e.dataBuf = e.dataBuf[:0]
 	e.fieldBuf = e.fieldBuf[:0]
+	e.compressed = e.compressed[:0]
 
 	// Ensure offsets slice fits
-	if cap(e.offsets) < len(fields) {
-		e.offsets = make([]uint32, len(fields))
+	if cap(e.offsets) < len(e.tmpfields) {
+		e.offsets = make([]uint32, len(e.tmpfields))
 	} else {
-		e.offsets = e.offsets[:len(fields)]
+		e.offsets = e.offsets[:len(e.tmpfields)]
 	}
 
 	// --- Encode field payloads ---
-	for i, f := range fields {
+	for i, f := range e.tmpfields {
 		// Align to 8 bytes if flag set
 		pad := align(len(e.dataBuf), 8) - len(e.dataBuf)
-		e.dataBuf = append(e.dataBuf, zeroPadding[:pad]...)
-
+		e.dataBuf = append(e.dataBuf, e.zeroPadding[:pad]...)
 		e.offsets[i] = uint32(len(e.dataBuf))
 
 		// Compress or array logic
 		switch {
 		case f.CompFlags&CompressionMask != 0:
-			compressed, err := compressData(f.CompFlags, f.Payload)
+
+			var err error
+			e.compressed, err = compressData(f.CompFlags, f.Payload)
 			if err != nil {
 				return nil, err
 			}
 			e.fieldBuf = e.fieldBuf[:0]
-			e.dataBuf = append(e.dataBuf, e.writeVarUint(uint64(len(compressed)))...)
-			e.dataBuf = append(e.dataBuf, compressed...)
+			e.writeVarUint(uint64(len(e.compressed)))
+			e.dataBuf = append(e.dataBuf, e.fieldBuf...)
+			e.dataBuf = append(e.dataBuf, e.compressed...)
 
 		case f.CompFlags&ArrayMask != 0:
 			e.fieldBuf = e.fieldBuf[:0]
-			e.dataBuf = append(e.dataBuf, e.writeVarUint(uint64(len(f.Payload)))...)
+			e.writeVarUint(uint64(len(f.Payload)))
+			e.dataBuf = append(e.dataBuf, e.fieldBuf...)
 			e.dataBuf = append(e.dataBuf, f.Payload...)
 
 		default:
@@ -144,12 +161,12 @@ func (e *Encoder) EncodeRecord(schemaID uint64, hotTags []uint16, fields []Field
 	}
 
 	// --- Encode vtable ---
-	vtSize := len(fields) * 8
+	vtSize := len(e.tmpfields) * 8
 	if cap(e.vtBuf) < vtSize {
 		e.vtBuf = make([]byte, vtSize)
 	}
 	e.vtBuf = e.vtBuf[:vtSize]
-	for i, f := range fields {
+	for i, f := range e.tmpfields {
 		idx := i * 8
 		binary.LittleEndian.PutUint16(e.vtBuf[idx:], f.Tag)
 		binary.LittleEndian.PutUint16(e.vtBuf[idx+2:], f.CompFlags)
@@ -157,6 +174,7 @@ func (e *Encoder) EncodeRecord(schemaID uint64, hotTags []uint16, fields []Field
 	}
 
 	// --- Encode header ---
+	// Make flags as options later on
 	e.headerBuf = encodeHeader(e.headerBuf[:0], Header{
 		Magic:       MagicV1,
 		Version:     VersionV1,
@@ -170,12 +188,16 @@ func (e *Encoder) EncodeRecord(schemaID uint64, hotTags []uint16, fields []Field
 
 	// --- Final payload ---
 	total := len(e.headerBuf) + len(e.vtBuf) + len(e.dataBuf)
-	out := make([]byte, 0, total)
-	out = append(out, e.headerBuf...)
-	out = append(out, e.vtBuf...)
-	out = append(out, e.dataBuf...)
+	if cap(e.out) < total {
+		e.out = make([]byte, 0, total*2)
+	} else {
+		e.out = e.out[:0]
+	}
+	e.out = append(e.out, e.headerBuf...)
+	e.out = append(e.out, e.vtBuf...)
+	e.out = append(e.out, e.dataBuf...)
 
-	return out, nil
+	return e.out, nil
 }
 
 func encodeHeader(buf []byte, h Header) []byte {
@@ -191,14 +213,21 @@ func encodeHeader(buf []byte, h Header) []byte {
 	return buf
 }
 
-var zeroPadding = [8]byte{}
+// Check if field list is sorted
+func isSortedByTag(fields []FieldValue) bool {
+	for i := 1; i < len(fields); i++ {
+		if fields[i-1].Tag > fields[i].Tag {
+			return false
+		}
+	}
+	return true
+}
 
-func (e *Encoder) writeVarUint(x uint64) []byte {
+func (e *Encoder) writeVarUint(x uint64) {
 	e.fieldBuf = e.fieldBuf[:0]
 	for x >= 0x80 {
 		e.fieldBuf = append(e.fieldBuf, byte(x)|0x80)
 		x >>= 7
 	}
 	e.fieldBuf = append(e.fieldBuf, byte(x))
-	return e.fieldBuf
 }

@@ -2,6 +2,7 @@ package fractus
 
 import wire "fractus/pkg/compactwire"
 
+// Work in Progress
 type client struct {
 	wire    *wire.Compactwire
 	configs *wire.Configs
@@ -24,5 +25,5 @@ func NewClient() *client {
 	return &client{wire: pkt, configs: conf}
 }
 func (c *client) CreateHanshake() {
-	c.wire.
+
 }
