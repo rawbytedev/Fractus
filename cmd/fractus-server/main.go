@@ -4,8 +4,8 @@ import (
 	"fractus/pkg/compactwire"
 	"fractus/pkg/dbflat"
 	"log"
-	_ "net/http/pprof"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"reflect"
 	"runtime"
@@ -78,6 +78,7 @@ func makeTestFields(shape string) []dbflat.FieldValue {
 
 }
 
+// Debugging
 func main() {
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
@@ -96,10 +97,17 @@ func main() {
 		log.Fatal(err)
 	}
 	defer f.Close()
+	payload := []byte("hello, CW!")
+	flags := compactwire.FlagEndOfMessage
+	da := &compactwire.DataFrame{}
+
 	runtime.MemProfileRate = 1
 	for i := 0; i < 10000; i++ {
-		a, _ := e.EncodeRecord(schemaID, hotTags, fields)
-		_, _= d.DecodeRecord(a, nil)
+		a, _ := e.EncodeRecordFull(schemaID, hotTags, fields)
+		_, _ = d.DecodeRecord(a, nil)
+
+		frame, _ := da.EncodeDataFrame(payload, flags, nil)
+		_, _, _, _ = da.DecodeDataFrame(frame)
 	}
 	pprof.WriteHeapProfile(f)
 	time.Sleep(5 * time.Minute)

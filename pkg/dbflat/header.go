@@ -33,6 +33,14 @@ const (
 	TypeString
 	TypeBytes
 )
+const (
+	FlagPadding       = 0x0001 // padded layout
+	FlagNoSchemaID    = 0x0002 // schema ID
+	FlagModeHotVtable = 0x0004
+	FlagModeNoVtable  = 0x0008
+	FlagModeTagWalk   = 0x0010
+	// Extend for checksum, compression, etc.
+)
 
 type Dbflat struct {
 	e *Encoder
@@ -42,7 +50,7 @@ type Dbflat struct {
 type Header struct {
 	Magic       uint32   // 4B
 	Version     uint16   // 2B
-	Flags       uint16   // 2B: bit0=align8,bit1=schemaID,bit2=index
+	Flags       uint16   // 2B
 	SchemaID    uint64   // 8B
 	HotBitmap   byte     // 1B: presence map for tags 1–8
 	VTableSlots byte     // number of slot in VTable

@@ -1,12 +1,9 @@
 package dbflat
 
-import "bytes"
-
-// still building not error free
 type Builder struct {
 	enc       *Encoder       // zero-alloc, reusable
 	dec       *Decoder       // for validation or round-trip
-	buf       *bytes.Buffer  // output buffer
+	buf       []byte         // output buffer
 	fields    []pendingField // scratch state
 	offsetTbl []fieldIndex   // optional field-to-offset
 	out       []byte         // encoded data
@@ -23,11 +20,18 @@ type fieldIndex struct {
 	offsets []uint32
 }
 
-func NewBuilder(buff *bytes.Buffer) *Builder {
+func NewBuilder(buff []byte) *Builder {
 	if buff != nil {
-		return &Builder{buf: buff}
+		return &Builder{buf: buff, enc: NewEncoder(), dec: NewDecoder()}
 	}
-	return &Builder{}
+	return &Builder{buf: make([]byte, 0), enc: NewEncoder(), dec: NewDecoder()}
+}
+
+func NewEncoder() *Encoder {
+	return &Encoder{}
+}
+func NewDecoder() *Decoder {
+	return &Decoder{}
 }
 
 func (b *Builder) AddField(tag uint16, compFlags uint16, field []byte, hot bool) {
@@ -35,14 +39,14 @@ func (b *Builder) AddField(tag uint16, compFlags uint16, field []byte, hot bool)
 }
 
 func (b *Builder) AddFieldOffset(tag uint16, compFlags uint16, field []byte, hot bool, offset []uint32) {
-	if hot == false {
+	if !hot {
 		hot = false
 	}
 	b.fields = append(b.fields, pendingField{Tag: tag, Hot: hot, CompFlags: compFlags, Value: field})
 	b.offsetTbl = append(b.offsetTbl, fieldIndex{Tag: tag, offsets: offset})
 }
 
-func (b *Builder) Commit(schemaID uint64, flags ...uint32) error {
+func (b *Builder) Commit(schemaID uint64, flags uint16) error {
 	var hotTags []uint16
 	var field []FieldValue
 	for _, a := range b.fields {
@@ -54,6 +58,12 @@ func (b *Builder) Commit(schemaID uint64, flags ...uint32) error {
 		}
 	}
 	var err error
-	b.out, err = b.enc.EncodeRecord(schemaID, hotTags, field)
+	out, err := b.enc.EncodeRecordFull(schemaID, hotTags, field)
+	b.out = append(b.out, out...)
 	return err
 }
+
+/*
+func (b *Builder) Validate() (bool, error){
+
+}*/
