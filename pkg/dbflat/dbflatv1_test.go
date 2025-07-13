@@ -124,7 +124,7 @@ func makeTestFields(shape string) []FieldValue {
 	case "skinny":
 		a, _ := Write(uint32(300))
 		return []FieldValue{
-			{Tag: uint16(1), Payload: []byte("Hello I'm Test 1"), CompFlags: 0x0000 | 0x8000},
+			{Tag: uint16(1), Payload: []byte("Hello I'm Test 1"), CompFlags: 0x8000},
 			{Tag: uint16(2), Payload: []byte("Hello I'm Test 2"), CompFlags: 0x0000 | 0x8000},
 			{Tag: uint16(3), Payload: []byte("Hello I'm Test Comp+10"), CompFlags: 0x0000 | 0x8000},
 			{Tag: uint16(192), Payload: a, CompFlags: 0x0000},
@@ -501,8 +501,8 @@ func TestCommit(t *testing.T) {
 	}
 	b.Commit(uint64(123), uint16(0x0001))
 	i, _ := Inspect(b.out, b.dec)
-	for pos, val := range s {
-		if !(bytes.Equal(i.GetField(uint16(pos+1)), val.Payload)) {
+	for _, val := range s {
+		if !(bytes.Equal(i.GetField(val.Tag), val.Payload)) {
 			t.Fail()
 		}
 	}
