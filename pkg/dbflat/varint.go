@@ -105,12 +105,13 @@ func WriteUint24(v uint32) []byte {
 }
 
 // writeVarUint writes a u64 as LEB128 varint.
-func writeVarUint(buf *bytes.Buffer, x uint64) {
+func writeVarUint(buf []byte, x uint64) []byte {
 	for x >= 0x80 {
-		buf.WriteByte(byte(x) | 0x80)
+		buf = append(buf, byte(x)|0x80)
 		x >>= 7
 	}
-	buf.WriteByte(byte(x))
+	buf = append(buf, byte(x))
+	return buf
 }
 
 // readVarUint reads a varint from buf, returns value and bytes read.
@@ -141,3 +142,5 @@ func readUint24(b []byte) uint32 {
 func align(off, a int) int {
 	return off + ((a - (off % a)) % a)
 }
+
+// zigzag helper

@@ -45,7 +45,7 @@ fields := []dbflat.Field{
 }
 
 enc := dbflat.NewEncoder()
-frame := enc.EncodeRecord(recordID, metadata, fields)
+frame := enc.EncodeRecordFull(recordID, metadata, fields)
 ```
 
 Use dbflat.DecodeRecord to parse with schema hints and introspect fields on the fly.
@@ -95,7 +95,7 @@ Pull requests are welcome! Ideas, use cases, and design critiques are even bette
 
 🧑‍🚀 Author
 
-Developed with precision by @rawbytedev 
+Developed with precision by @rawbytedev
 
 ---
 
