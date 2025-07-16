@@ -48,6 +48,7 @@ func (b *Builder) AddFieldOffset(tag uint16, compFlags uint16, field []byte, hot
 
 func (b *Builder) Commit(schemaID uint64, flags uint16) error {
 	var hotTags []uint16
+	b.enc.headerflag = flags
 	var field []FieldValue
 	for _, a := range b.fields {
 		field = append(field, FieldValue{Tag: a.Tag, CompFlags: a.CompFlags, Payload: a.Value})
@@ -60,7 +61,20 @@ func (b *Builder) Commit(schemaID uint64, flags uint16) error {
 	var err error
 	out, err := b.enc.EncodeRecordFull(schemaID, hotTags, field)
 	b.out = append(b.out, out...)
+	out = out[:0]
+	if err != nil {
+		return err
+	}
 	return err
+}
+
+func (b *Builder) Output() []byte {
+	return b.out
+}
+func (b *Builder) Reset() {
+	b.fields = b.fields[:0]
+	b.out = b.out[:0]
+	b.buf = b.buf[:0]
 }
 
 /*

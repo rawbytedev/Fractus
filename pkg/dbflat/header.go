@@ -34,11 +34,12 @@ const (
 	TypeBytes
 )
 const (
-	FlagPadding       = 0x0001 // padded layout
-	FlagNoSchemaID    = 0x0002 // schema ID
-	FlagModeHotVtable = 0x0004
-	FlagModeNoVtable  = 0x0008
-	FlagModeTagWalk   = 0x0010
+	FlagPadding       = 0x0001 // padded layout 01
+	FlagNoSchemaID    = 0x0002 // schema ID 10
+	FlagModeHotVtable = 0x0004 // 100 1111
+	FlagModeNoVtable  = 0x0008 // 1000
+	FlagModeTagWalk   = 0x0010 //
+	FlagModeDirect    = 0x0000 // means starts at 1 and next tag is plus 1
 	// Extend for checksum, compression, etc.
 )
 

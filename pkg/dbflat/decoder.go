@@ -12,20 +12,27 @@ type Decoder struct {
 	raw       []byte
 }
 
+var ErrBufferEmpty = errors.New("buffer empty")
+
 // Decode Hot Field with partial decoding and return a []byte
 // work for hotvtable and fullvtable mode
 // This operation gives out O(1) speedfunc ReadHotField(buf []byte, tag uint16, width int) ([]byte, error) {
+// It can be reused if the tags starts from 1 and are sequential
+// Note: Still uses Vtable
 func (d *Decoder) ReadHotField(buf []byte, tag uint16, width int) ([]byte, error) {
-	if tag == 0 || tag > 8 {
-		return nil, fmt.Errorf("invalid hot field tag: %d", tag)
-	}
-
-	d.blob = d.blob[:0]
-	// Parse header
 	h, err := ParseHeader(buf)
 	if err != nil {
 		return nil, err
 	}
+	if h.Flags&FlagModeHotVtable != 0 {
+		if tag == 0 || tag > 8 {
+			return nil, fmt.Errorf("invalid hot field tag: %d", tag)
+		}
+	}
+
+	d.blob = d.blob[:0]
+	// Parse header
+
 	if !(h.Flags&FlagModeHotVtable != 0) {
 		if (h.HotBitmap>>(tag-1))&1 == 0 {
 			return nil, fmt.Errorf("tag %d is not a hot field", tag)
@@ -91,15 +98,6 @@ func (d *Decoder) FindWithTag(buf []byte, tag uint16) ([]byte, error) {
 	slotCnt := int(h.VTableSlots)
 	// 3) parse each slot
 	dataStart := int(h.DataOffset)
-
-	if d.fieldsOut == nil {
-		d.fieldsOut = make(map[uint16][]byte)
-	} else {
-		// clear map
-		for k := range d.fieldsOut {
-			delete(d.fieldsOut, k)
-		}
-	}
 	for i := range slotCnt {
 		base := vtStart + i*SlotSize
 		ltag := binary.LittleEndian.Uint16(buf[base:])
@@ -211,15 +209,24 @@ func (d *Decoder) DecodeRecord(buf []byte, fmaps map[uint16]int) (map[uint16][]b
 // Return a map that contains all hotfields
 func (d *Decoder) DecodeRecordHot(buf []byte) (map[uint16][]byte, error) {
 	m := make(map[uint16][]byte)
-	for i := range 8 {
-		res, _ := d.ReadHotField(buf, uint16(i+1), 0)
-		m[uint16(i)] = res
+	h, err := ParseHeader(buf)
+	if err != nil {
+		return nil, err
+	}
+	if h.Flags&FlagModeHotVtable != 0 {
+		for i := range 8 {
+			res, _ := d.ReadHotField(buf, uint16(i+1), 0)
+			m[uint16(i)] = res
+		}
 	}
 	return m, nil
 
 }
 
-func (d *Decoder) DecodeRecordTagWalk(buf []byte, off int) (map[uint16][]byte, int, error) {
+func (d *Decoder) DecodeRecordTagWalk(buf []byte, off int, fmaps map[uint16]int) (map[uint16][]byte, int, error) {
+	if len(buf) >= off {
+		return nil, 0, ErrBufferEmpty
+	}
 	if d.fieldsOut == nil {
 		d.fieldsOut = make(map[uint16][]byte)
 	} else {
@@ -240,7 +247,7 @@ func (d *Decoder) DecodeRecordTagWalk(buf []byte, off int) (map[uint16][]byte, i
 		// compressed blob ends at next slot/data boundary or len(buf)
 		// assume till end for simplicity
 		d.raw = buf[ptr : ptr+int(size)]
-		endOff = off + 4 + int(size)+1
+		endOff = off + 4 + int(size) + 1
 		if cf&CompressionMask != CompRaw {
 			decoded, err := decompressData(cf, d.raw, int(size))
 			if err != nil {
@@ -250,15 +257,16 @@ func (d *Decoder) DecodeRecordTagWalk(buf []byte, off int) (map[uint16][]byte, i
 		}
 	} else {
 		// fixed-width: get width from compFlags/type map
-		/*fixedWidthMap := GetFixedWidthMap(false, fmaps)
+		fixedWidthMap := GetFixedWidthMap(false, fmaps)
 		if fixedWidthMap != nil {
 			width := fixedWidthMap[tag]
 			d.blob = buf[ptr : ptr+width]
-		} else {*/
-
-		width := fixedWidth(tag)
-		d.raw = buf[ptr : ptr+width]
-		endOff = off + 4 + int(width)+1
+			endOff = off + 4 + int(width) + 1
+		} else {
+			width := fixedWidth(tag)
+			d.raw = buf[ptr : ptr+width]
+			endOff = off + 4 + int(width) + 1
+		}
 	}
 	d.fieldsOut[tag] = d.raw
 	return d.fieldsOut, endOff, nil
