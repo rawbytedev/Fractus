@@ -35,6 +35,7 @@ type Encoder struct {
 // ------------------------------------------------------------------------------
 // Encoders Section
 // ------------------------------------------------------------------------------
+
 // --- Default Encoder optional flag for header is align8(create 8byte padding) or not
 // Avoid using padding to save up space considerably
 // sorted tags offer faster lookup than normal due to use of vtable
