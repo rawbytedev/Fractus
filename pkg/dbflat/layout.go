@@ -2,7 +2,6 @@ package dbflat
 
 import (
 	"encoding/binary"
-	"slices"
 	"sort"
 )
 
@@ -202,16 +201,24 @@ func enHeader(h *Header) []byte {
 	}
 }
 
-// Not fully implemented
-func PartitionFields(fields []FieldValue, u []uint16) ([]FieldValue, []FieldValue) {
-	var cold []FieldValue
-	if len(fields) < len(u) {
-		return nil, nil
+// PartitionFields splits fields into hot and cold slices based on hotTags.
+// - Only fields present in both the input and hotTags are considered hot.
+// - The function is O(n) in the number of fields, with O(1) hot tag lookup.
+// - If a tag is in hotTags but not present in fields, it is ignored (no wasted search).
+func PartitionFields(fields []FieldValue, hotTags []uint16) ([]FieldValue, []FieldValue) {
+	// Build a set for fast hot tag lookup
+	hotSet := make(map[uint16]struct{}, len(hotTags))
+	for _, tag := range hotTags {
+		hotSet[tag] = struct{}{}
 	}
-	hot := slices.DeleteFunc(fields, func(s FieldValue) bool {
-		return true
-	})
-
+	var hot, cold []FieldValue
+	for _, f := range fields {
+		if _, isHot := hotSet[f.Tag]; isHot {
+			hot = append(hot, f)
+		} else {
+			cold = append(cold, f)
+		}
+	}
 	return hot, cold
 }
 func Sort(fields []FieldValue) []FieldValue {

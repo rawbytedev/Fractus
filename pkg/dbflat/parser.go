@@ -3,7 +3,7 @@ package dbflat
 import (
 	"encoding/binary"
 	"errors"
-	"gopkg.in/yaml.v2"
+	//"gopkg.in/yaml.v2"
 )
 
 
