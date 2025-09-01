@@ -2,6 +2,8 @@ package dbflat
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"sort"
 	"testing"
 
@@ -655,5 +657,80 @@ func TestLayoutTagWalk(t *testing.T) {
 	payloadv2 := LaunchPlan(a)
 	if !bytes.Equal(payloadv1, payloadv2) {
 		t.Fatal("error: payload mismatch mismatch ")
+	}
+}
+
+// ------------------------------------------------------------------------------
+// Schema Test
+// ------------------------------------------------------------------------------
+func TestSchemaSave(t *testing.T) {
+	fields := makeTestFields("skinny")
+	sches := FieldValue_Schema(fields)
+	marshdata, err := SaveSchemaYAMLBin(sches)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Create("out.marsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.Write(marshdata)
+	file.Close()
+}
+
+func TestLoadSchema(t *testing.T) {
+	type trans struct {
+		sender   string
+		receiver string
+		amount   uint64
+		txID     []byte
+	}
+	tx := trans{
+		sender:   "aren",
+		receiver: "walid",
+		amount:   uint64(123),
+		txID:     []byte("azerty"),
+	}
+	a, err := LoadSchema("out.marsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	field := EncodeStruct(*a, tx)
+	fmt.Print(field)
+
+}
+func BenchmarkStructFieldValu(t *testing.B) {
+	type trans struct {
+		name     string
+		receiver string
+	}
+	a := trans{name: "hello", receiver: "hi"}
+
+	t.ReportAllocs()
+	for t.Loop() {
+		StructFieldValue(a, map[uint16]string{1: "name", 3: "receiver"})
+	}
+
+}
+func TestBinToStruct(t *testing.T) {
+	type trans struct {
+		name     string
+		receiver string
+	}
+	tx := trans{name: "hello", receiver: "hi"}
+	loc := map[uint16]string{1: "name", 3: "receiver"}
+	fields := StructFieldValue(tx, loc)
+	var e Encoder
+	bin, err := e.EncodeRecordTagWorK(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tx2 trans
+	err = BinToStruct(&tx2, bin, loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tx != tx2 {
+		t.Fatal("error: struct mismatch")
 	}
 }
