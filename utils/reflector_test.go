@@ -1,15 +1,42 @@
 package utils
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
-func TestRe(t *testing.T) {
+func TestUtilsListStructElem(t *testing.T) {
+	type test struct {
+		daz string `fractus:"data"`
+		id  int `fractus:"datad"`
+		op  string
+	}
+	var val test
+	val.daz = "hi"
+	store, err := SecListStructElem(val) // simple test for utils
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range store {
+		fmt.Print(ReturnConverted(store[i]))
+	}
+}
+
+func BenchmarkUtilsListStructElem(b *testing.B) {
 	type test struct {
 		data string
 		id   int
 		op   string
 	}
 	var val test
-	val.data = "Hello"
-	val.id = 1
-	ListStructElem(val)
+	b.ReportAllocs()
+	store, err := ListStructElem(val) // simple test for utils
+
+	if err != nil {
+		b.Fatal(err)
+	}
+	for i := range store {
+		ReturnConverted(store[i])
+	}
+
 }
