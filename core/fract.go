@@ -36,13 +36,13 @@ func (f *Fractus) Encode(val interface{}) ([]byte, error) {
 	return res, nil
 }
 func (f *Fractus) Decode(data []byte, val interface{}) error {
-	tmp, err := utils.ListStructElem(val)
+	tmp, err := utils.ListStructElem(&val)
 	if err != nil {
 		return err
 	}
 	info := utils.BuildInfo(tmp)
 	cursor := 0
-	for _, inf := range info {
+	for i, inf := range info {
 		size := utils.GetLenght(inf.Kind)
 		// string
 		if size == 0 {
@@ -53,20 +53,23 @@ func (f *Fractus) Decode(data []byte, val interface{}) error {
 			if err != nil {
 				return err
 			}
+			utils.SetField(tmp[i], i, data[cursor:cursor+int(a)])
 			cursor = cursor + int(a)
 		} else {
 			inf.Val, err = utils.ReadAny(data[cursor:cursor+size], utils.TypeInt8)
 			if err != nil {
 				return err
 			}
+			utils.SetField(tmp[i], i, data[cursor:cursor+size])
 			//fmt.Print(inf.Val)
 			cursor = cursor + size
 		}
 
 	}
-	panic("can't assign to val yet")
+	//panic("can't assign to val yet")
 	return nil
 }
+
 func NewFractus() IFractus {
 	return &Fractus{}
 }

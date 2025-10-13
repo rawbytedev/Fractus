@@ -1,6 +1,9 @@
 package utils
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+)
 
 type InterType struct {
 	Id   int
@@ -29,4 +32,26 @@ func GetLenght(kd reflect.Kind) int {
 	default:
 		return 0
 	}
+}
+func SetField(v reflect.Value, idx int, data []byte) {
+	if v.CanSet() {
+		fmt.Print("Yeah")
+		switch v.Kind() {
+		case reflect.String:
+			v.SetString(string(data))
+		case reflect.Int8:
+			res, err := ReadAny(data, TypeInt8)
+			if err != nil {
+				return
+			}
+			a, ok := res.(int8)
+			if ok {
+				v.SetInt(int64(a))
+			}
+		default:
+			panic("unsupported")
+
+		}
+	}
+	return
 }
