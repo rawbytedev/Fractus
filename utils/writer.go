@@ -121,7 +121,7 @@ func WriteVarUint(buf []byte, x uint64) []byte {
 }
 
 // readVarUint reads a varint from buf, returns value and bytes read.
-func readVarUint(b []byte) (uint64, int) {
+func ReadVarUint(b []byte) (uint64, int) {
 	var x uint64
 	var s uint
 	for i, c := range b {

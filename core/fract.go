@@ -12,15 +12,6 @@ var (
 
 // core struct
 type Fractus struct {
-	types []InterType
-}
-
-// usually name of field aren't important to us
-// so we just use an Id for each field and expose field names as extension
-type InterType struct {
-	id   int
-	kind reflect.Kind //need for type assertion
-	val  any
 }
 
 func (f *Fractus) Encode(val interface{}) ([]byte, error) {
@@ -29,16 +20,12 @@ func (f *Fractus) Encode(val interface{}) ([]byte, error) {
 		return nil, err
 	}
 	var res []byte
-	for i, dt := range tmp {
-		f.types = append(f.types, InterType{
-			val:  utils.ReturnConverted(dt),
-			kind: dt.Kind(),
-			id:   i,
-		})
-		if a, err := utils.Write(f.types[i].val); err != nil {
+	infos := utils.BuildInfo(tmp)
+	for _, inf := range infos {
+		if a, err := utils.Write(inf.Val); err != nil {
 			return nil, err
 		} else {
-			if f.types[i].kind != reflect.String {
+			if inf.Kind != reflect.String {
 				res = append(res, a...)
 			} else {
 				res = append(res, utils.WriteVarUint(make([]byte, 0), uint64(len(a)))...)
@@ -49,10 +36,39 @@ func (f *Fractus) Encode(val interface{}) ([]byte, error) {
 	return res, nil
 }
 func (f *Fractus) Decode(data []byte, val interface{}) error {
+	tmp, err := utils.ListStructElem(val)
+	if err != nil {
+		return err
+	}
+	info := utils.BuildInfo(tmp)
+	cursor := 0
+	for _, inf := range info {
+		size := utils.GetLenght(inf.Kind)
+		// string
+		if size == 0 {
+			a, n := utils.ReadVarUint(data[cursor:])
+			cursor = cursor + n
+			inf.Val, err = utils.ReadAny(data[cursor:cursor+int(a)], utils.TypeString)
+			//fmt.Print(string(data[cursor : cursor+int(a)]))
+			if err != nil {
+				return err
+			}
+			cursor = cursor + int(a)
+		} else {
+			inf.Val, err = utils.ReadAny(data[cursor:cursor+size], utils.TypeInt8)
+			if err != nil {
+				return err
+			}
+			//fmt.Print(inf.Val)
+			cursor = cursor + size
+		}
+
+	}
+	panic("can't assign to val yet")
 	return nil
 }
 func NewFractus() IFractus {
-	return &Fractus{types: make([]InterType, 0)}
+	return &Fractus{}
 }
 func main() {
 	NewFractus()

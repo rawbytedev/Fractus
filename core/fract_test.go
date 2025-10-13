@@ -20,5 +20,7 @@ func TestFractusEncode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Print(data)
+	var dt test
+	f.Decode(data, dt)
+	fmt.Print(dt.data)
 }

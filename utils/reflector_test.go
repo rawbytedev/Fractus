@@ -8,12 +8,11 @@ import (
 func TestUtilsListStructElem(t *testing.T) {
 	type test struct {
 		daz string `fractus:"data"`
-		id  int `fractus:"datad"`
+		id  int8    `fractus:"datad"`
 		op  string
 	}
 	var val test
-	val.daz = "hi"
-	store, err := SecListStructElem(val) // simple test for utils
+	store, err := ListStructElem(val) // simple test for utils
 	if err != nil {
 		t.Fatal(err)
 	}

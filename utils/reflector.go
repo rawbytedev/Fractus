@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"reflect"
 )
 
@@ -19,13 +18,19 @@ func ListStructElem(v interface{}) ([]reflect.Value, error) {
 	return elems, nil
 }
 func SecListStructElem(v interface{}) ([]reflect.Value, error) {
+
 	data := reflect.ValueOf(v)
 	if data.Kind() != reflect.Struct {
 		return nil, &reflect.ValueError{} // change to proper error message later
 	}
 	f := data.Type()
-	field := f.Field(1)
-	fmt.Print(field.Tag.Get("fractus"))
+	for i := range f.NumField() {
+		tmp := f.Field(i)
+		if tmp.PkgPath != "" && !tmp.Anonymous {
+			continue
+		}
+
+	}
 
 	return nil, nil
 }
@@ -48,3 +53,4 @@ func ReturnConverted(v reflect.Value) any {
 		return nil
 	}
 }
+
