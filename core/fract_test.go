@@ -5,13 +5,15 @@ import (
 	"testing"
 )
 
+type Test struct {
+	Data string
+	Id   int8
+	Op   string
+}
+
 func TestFractusEncode(t *testing.T) {
-	type test struct {
-		Data string
-		Id   int8
-		Op   string
-	}
-	var val test
+
+	var val Test
 	val.Data = "Hello"
 	val.Id = 1
 	val.Op = "zero"
@@ -20,7 +22,14 @@ func TestFractusEncode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var dt test
-	f.Decode(data, &dt)
+	fmt.Print(data)
+	//*
+	var dt Test
+	err = f.Decode(data, &dt)
+	if err != nil {
+		t.Fatal(err)
+	} //*/
 	fmt.Print(dt.Id)
+	fmt.Print(dt.Data)
+	fmt.Print(dt.Op)
 }

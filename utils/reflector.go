@@ -7,11 +7,16 @@ import (
 // works only on structs
 // only list Elem from struct
 func ListStructElem(v interface{}) ([]reflect.Value, error) {
+	var elems []reflect.Value
 	data := reflect.ValueOf(v)
+	// safeguard
+	if data.Kind() == reflect.Pointer {
+		data = data.Elem()
+	}
 	if data.Kind() != reflect.Struct {
 		return nil, &reflect.ValueError{} // change to proper error message later
 	}
-	var elems []reflect.Value
+
 	for i := range data.NumField() {
 		elems = append(elems, data.Field(i))
 	}
@@ -53,4 +58,3 @@ func ReturnConverted(v reflect.Value) any {
 		return nil
 	}
 }
-

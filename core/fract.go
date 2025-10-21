@@ -25,7 +25,7 @@ func (f *Fractus) Encode(val interface{}) ([]byte, error) {
 		if a, err := utils.Write(inf.Val); err != nil {
 			return nil, err
 		} else {
-			if inf.Kind != reflect.String {
+			if inf.Kind != reflect.TypeFor[string]() {
 				res = append(res, a...)
 			} else {
 				res = append(res, utils.WriteVarUint(make([]byte, 0), uint64(len(a)))...)
@@ -36,31 +36,32 @@ func (f *Fractus) Encode(val interface{}) ([]byte, error) {
 	return res, nil
 }
 func (f *Fractus) Decode(data []byte, val interface{}) error {
-	tmp, err := utils.ListStructElem(&val)
-	if err != nil {
-		return err
+	v := reflect.ValueOf(val)
+	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {
+		panic("expectedpointer to struct")
 	}
-	info := utils.BuildInfo(tmp)
+	v = v.Elem()
+	//t := v.Type()
 	cursor := 0
-	for i, inf := range info {
-		size := utils.GetLenght(inf.Kind)
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		size := utils.GetLength(field.Kind())
 		// string
 		if size == 0 {
 			a, n := utils.ReadVarUint(data[cursor:])
 			cursor = cursor + n
-			inf.Val, err = utils.ReadAny(data[cursor:cursor+int(a)], utils.TypeString)
-			//fmt.Print(string(data[cursor : cursor+int(a)]))
-			if err != nil {
-				return err
+			if field.CanSet() {
+				field.SetString(string(data[cursor : cursor+int(a)]))
 			}
-			utils.SetField(tmp[i], i, data[cursor:cursor+int(a)])
 			cursor = cursor + int(a)
 		} else {
-			inf.Val, err = utils.ReadAny(data[cursor:cursor+size], utils.TypeInt8)
+			Val, err := utils.ReadAny(data[cursor:cursor+size], utils.TypeInt8)
 			if err != nil {
 				return err
 			}
-			utils.SetField(tmp[i], i, data[cursor:cursor+size])
+			if field.CanSet() {
+				field.SetInt(int64(Val.(int8)))
+			}
 			//fmt.Print(inf.Val)
 			cursor = cursor + size
 		}
