@@ -373,8 +373,8 @@ func TestEncodeTagWalk(t *testing.T) {
 	_, off, _ := d.DecodeRecordTagWalk(enc, 0, nil)
 	_, soff, _ := d.DecodeRecordTagWalk(enc, off, nil)
 	_, toff, _ := d.DecodeRecordTagWalk(enc, soff, nil)
-	_, _, _ = d.DecodeRecordTagWalk(enc, toff, nil)
-	//t.Log(ReadAny(r[192], TypeUint32))
+	r, _, _ := d.DecodeRecordTagWalk(enc, toff, nil)
+	t.Log(ReadAny(r[192], TypeUint32))
 }
 
 func TestNextTagWalk(t *testing.T) {
