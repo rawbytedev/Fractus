@@ -357,18 +357,35 @@ func TestEncodeHot(t *testing.T) {
 
 }
 
+// ------------------------------------------------------------------------------
+// Tag Walk Test
+// ------------------------------------------------------------------------------
+
 func TestEncodeTagWalk(t *testing.T) {
 	fields := makeTestFields("skinny")
 	fields = Order(fields)
 	var e Encoder
 	var d Decoder
 	enc, _ := e.EncodeRecordTagWorK(fields)
-	t.Log(enc)
-	_, off, _ := d.DecodeRecordTagWalk(enc, 0)
-	_, soff, _ := d.DecodeRecordTagWalk(enc, off)
-	_, toff, _ := d.DecodeRecordTagWalk(enc, soff)
-	r, _, _ := d.DecodeRecordTagWalk(enc, toff)
+	//t.Log(enc)
+	_, off, _ := d.DecodeRecordTagWalk(enc, 0, nil)
+	_, soff, _ := d.DecodeRecordTagWalk(enc, off, nil)
+	_, toff, _ := d.DecodeRecordTagWalk(enc, soff, nil)
+	r, _, _ := d.DecodeRecordTagWalk(enc, toff, nil)
 	t.Log(ReadAny(r[192], TypeUint32))
+}
+
+func TestNextTagWalk(t *testing.T) {
+	fields := makeTestFields("skinny")
+	fields = Order(fields)
+	var e Encoder
+	var d Decoder
+	enc, _ := e.EncodeRecordTagWorK(fields)
+	i, _ := Inspect(enc, &d)
+	//i.Scan()
+	for i.Next() {
+		t.Log(i.Field())
+	}
 }
 
 func BenchmarkWrite(b *testing.B) {
@@ -487,6 +504,17 @@ func BenchmarkFindWithTag(b *testing.B) {
 		_, _ = i.GetFieldD(uint16(10))
 	}
 	b.SetBytes(int64(len(raw)))
+}
+func TestInpectNextPeekOffset(t *testing.T) {
+	fields := makeTestFields("heavy")
+	var e Encoder
+	var d Decoder
+	raw, _ := e.EncodeRecordTagWorK(fields)
+	i, _ := Inspect(raw, &d)
+	for i.Next() {
+		t.Log(i.Peek())
+	}
+
 }
 
 // ------------------------------------------------------------------------------

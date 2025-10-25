@@ -24,9 +24,9 @@ func fixedWidth(c uint16) int {
 		return 1 // bool
 	case c <= 31: // 16-31
 		return 1 // int8
-	case c <= 63: // 32-64
+	case c <= 63: // 32-63
 		return 1 // uint8
-	case c <= 127: // 65-127
+	case c <= 127: // 64-127
 		return 2 // int16
 	case c <= 191: // 128-191
 		return 2 // uint16
