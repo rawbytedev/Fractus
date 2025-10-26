@@ -3,11 +3,9 @@ package dbflat
 import (
 	"encoding/binary"
 	"errors"
+	//"gopkg.in/yaml.v2"
 )
 
-type Options struct {
-	Flags uint16
-}
 
 func encodeHeader(buf []byte, h Header) []byte {
 	if h.Flags&FlagNoSchemaID != 0 {

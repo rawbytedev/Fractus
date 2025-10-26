@@ -2,6 +2,8 @@ package dbflat
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"sort"
 	"testing"
 
@@ -64,10 +66,10 @@ func TestDecodeHotFieldWithPadding(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(a, field[i].Payload) {
-			t.Failed()
+			t.Fatal("error: Payload Mismatch")
 		}
 	}
-	t.Logf("size with padding: %d", len(enc))
+	//t.Logf("size with padding: %d", len(enc))
 }
 func TestDecodeHotFieldNoPadding(t *testing.T) {
 	field := makeTestFields("skinny")
@@ -533,5 +535,202 @@ func TestCommit(t *testing.T) {
 		if !(bytes.Equal(i.GetField(val.Tag), val.Payload)) {
 			t.Fail()
 		}
+	}
+}
+
+// ------------------------------------------------------------------------------
+// Layout Test
+// ------------------------------------------------------------------------------
+func TestGenPayload(t *testing.T) {
+	fields := makeTestFields("heavy")
+	fields = Order(fields)
+	schemaID := uint64(112)
+	hotTags := []uint16{
+		uint16(1),
+		uint16(2),
+		uint16(3),
+	}
+	e := &Encoder{}
+	//d := NewDecoder()
+	enc, err := e.EncodeRecordFull(schemaID, hotTags, fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := ParseHeader(enc)
+	if err != nil {
+		t.Fatalf("error: %s", err)
+	}
+	start := head.DataOffset
+	payloadv1 := enc[start:]
+	payloadv2, _ := GenPayloads(fields)
+	if !bytes.Equal(payloadv1, payloadv2) {
+		t.Fatal("error: payload mismatch ")
+	}
+}
+func TestGenVtable(t *testing.T) {
+	fields := makeTestFields("skinny")
+	fields = Order(fields)
+	schemaID := uint64(112)
+	hotTags := []uint16{
+		uint16(1),
+		uint16(2),
+		uint16(3),
+	}
+	e := &Encoder{}
+	enc, err := e.EncodeRecordFull(schemaID, hotTags, fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := ParseHeader(enc)
+	if err != nil {
+		t.Fatalf("error: %s", err)
+	}
+	start := head.VTableOff      // start of vtable/offset
+	num := int(head.VTableSlots) // number of vtable
+	payloadv1 := enc[start:(int(start) + 8*num)]
+	_, offset := GenPayloads(fields)
+	payloadv2 := GeneVtables(offset)
+	if !bytes.Equal(payloadv1, payloadv2) {
+		t.Fatal("error: Vtable mismatch mismatch ")
+	}
+}
+func TestGenTagWalk(t *testing.T) {
+	fields := makeTestFields("skinny")
+	fields = Order(fields)
+	e := &Encoder{}
+	payloadv1, err := e.EncodeRecordTagWorK(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloadv2 := GenTagWalk(fields)
+	if !bytes.Equal(payloadv1, payloadv2) {
+		t.Fatal("error: Vtable mismatch mismatch ")
+	}
+}
+
+func TestLayoutFullMode(t *testing.T) {
+	fields := makeTestFields("skinny")
+	fields = Order(fields)
+	schemaID := uint64(112)
+	hotTags := []uint16{
+		uint16(1),
+		uint16(2),
+		uint16(3),
+	}
+	e := &Encoder{}
+	payloadv1, err := e.EncodeRecordFull(schemaID, hotTags, fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &LayoutPlan{
+		Fields:   fields,
+		SchemaID: schemaID,
+		HotTags:  hotTags,
+		Strategy: FullVTable,
+	}
+	payloadv2 := LaunchPlan(a)
+	if !bytes.Equal(payloadv1, payloadv2) {
+		t.Fatal("error: payload mismatch mismatch ")
+	}
+}
+
+func TestLayoutTagWalk(t *testing.T) {
+	fields := makeTestFields("skinny")
+	fields = Order(fields)
+	schemaID := uint64(112)
+	hotTags := []uint16{
+		uint16(1),
+		uint16(2),
+		uint16(3),
+	}
+	e := &Encoder{}
+	payloadv1, err := e.EncodeRecordTagWorK(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &LayoutPlan{
+		Fields:   fields,
+		SchemaID: schemaID,
+		HotTags:  hotTags,
+		Strategy: TagWalk,
+	}
+	payloadv2 := LaunchPlan(a)
+	if !bytes.Equal(payloadv1, payloadv2) {
+		t.Fatal("error: payload mismatch mismatch ")
+	}
+}
+
+// ------------------------------------------------------------------------------
+// Schema Test
+// ------------------------------------------------------------------------------
+func TestSchemaSave(t *testing.T) {
+	fields := makeTestFields("skinny")
+	sches := FieldValue_Schema(fields)
+	marshdata, err := SaveSchemaYAMLBin(sches)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Create("out.marsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.Write(marshdata)
+	file.Close()
+}
+
+func TestLoadSchema(t *testing.T) {
+	type trans struct {
+		sender   string
+		receiver string
+		amount   uint64
+		txID     []byte
+	}
+	tx := trans{
+		sender:   "aren",
+		receiver: "walid",
+		amount:   uint64(123),
+		txID:     []byte("azerty"),
+	}
+	a, err := LoadSchema("out.marsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	field := EncodeStruct(*a, tx)
+	fmt.Print(field)
+
+}
+func BenchmarkStructFieldValu(t *testing.B) {
+	type trans struct {
+		name     string
+		receiver string
+	}
+	a := trans{name: "hello", receiver: "hi"}
+
+	t.ReportAllocs()
+	for t.Loop() {
+		StructFieldValue(a, map[uint16]string{1: "name", 3: "receiver"})
+	}
+
+}
+func TestBinToStruct(t *testing.T) {
+	type trans struct {
+		name     string
+		receiver string
+	}
+	tx := trans{name: "hello", receiver: "hi"}
+	loc := map[uint16]string{1: "name", 3: "receiver"}
+	fields := StructFieldValue(tx, loc)
+	var e Encoder
+	bin, err := e.EncodeRecordTagWorK(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tx2 trans
+	err = BinToStruct(&tx2, bin, loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tx != tx2 {
+		t.Fatal("error: struct mismatch")
 	}
 }
