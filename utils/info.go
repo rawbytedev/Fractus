@@ -31,29 +31,28 @@ func BuildInfo(fields []reflect.Value) []InterType {
 	return info
 }
 func Info(strct reflect.Value) []InterType {
-    t := strct.Type()
-    var info []InterType
-    for i := 0; i < t.NumField(); i++ {
-        f := t.Field(i)        // reflect.StructField
-        fv := strct.Field(i)   // reflect.Value of the field
+	t := strct.Type()
+	var info []InterType
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i) // reflect.StructField
+		fv := strct.Field(i) // reflect.Value of the field
 
-        // unwrap pointer types if you want the underlying element
-        ft := f.Type
-        for ft.Kind() == reflect.Ptr {
-            ft = ft.Elem()
-        }
+		// unwrap pointer types if you want the underlying element
+		ft := f.Type
+		for ft.Kind() == reflect.Ptr {
+			ft = ft.Elem()
+		}
 
-        fmt.Printf("field %d declared: %s -> stored as: %s\n", i, f.Type, ft)
+		fmt.Printf("field %d declared: %s -> stored as: %s\n", i, f.Type, ft)
 
-        info = append(info, InterType{
-            Id:   i,
-            Kind: ft,          // normalized type
-            Val:  fv.Interface(),
-        })
-    }
-    return info
+		info = append(info, InterType{
+			Id:   i,
+			Kind: ft, // normalized type
+			Val:  fv.Interface(),
+		})
+	}
+	return info
 }
-
 
 func GetLength(kd reflect.Kind) int {
 	switch kd {

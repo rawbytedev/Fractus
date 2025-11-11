@@ -80,3 +80,26 @@ func BenchmarkEncoding(b *testing.B) {
 	}
 
 }
+func BenchmarkConstant(b *testing.B) {
+	type NewStructint struct {
+		Int1 uint8
+		Int2 int8
+		Int3 uint16
+		Int4 int16
+		Int5 uint32
+		Int6 int32
+		Int7 uint64
+		Int9 int64
+	}
+	z := NewStructint{Int1: 1, Int2: 2, Int3: 16, Int4: 18, Int5: 1586, Int6: 15262, Int7: 1547544565, Int9: 15484565656}
+	y := &NewStructint{}
+	f := &Fractus{}
+	res := []byte{}
+	b.ReportAllocs()
+	for b.Loop() {
+		res, _ = f.Encode(z)
+	}
+
+	f.Decode(res, y)
+	require.EqualValues(b, z, *y)
+}
