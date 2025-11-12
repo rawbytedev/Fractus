@@ -1,187 +1,118 @@
 # Fractus
 
-**Fractus** is a zero-allocation, introspectable encoding framework built for schema-evolving protocols and decentralized systems.
-Fractus supports multiple encoding layouts, dynamic header logic, and streaming field inspection—all while keeping performance flat and GC-free.
+Fractus is a lightweight, serialization library for Go.  
+It encodes and decodes structs into a compact binary format with support for:
 
-> Because protocol design deserves as much care as protocol logic.
+- Fixed-size primitive types (`int8`, `int16`, `int32`, `int64`, `uint*`, `float32`, `float64`, `bool`)
+- Variable-size types (`string`, `[]byte`, slices of primitives/strings/byte slices)
+- Struct pointers
+- Presence bitmaps for optional fields
+- Unsafe zero-copy string decoding (optional)
 
----
-
-## ✨ Features
-
-- ⚡ **Zero-Allocation Encoding & Decoding**  
-  Fractus encodes directly into preallocated buffers—no heap allocations, no GC pressure.
-
-- 🧠 **Schema Evolution Ready**  
-  Forward-compatible layouts, introspection, and optional schema ID fields.
-
-- 🧩 **Multi-Mode Encoding**  
-  Choose between full vtable, hotfield-indexed, or streamable tag-walk formats.
-
-- 🔍 **Fast Field Lookup**  
-  Hot fields decoded with O(1) access; cold fields scanned via streaming or schema-driven offsets.
-
-- 🛠 **Developer Ergonomics First**  
-  Built-in `Builder`, `Inspector`,`Encoder` and `Decoder` APIs with reusable scratch buffers.
-
-- 📦 **Compression & Encoding Flags**  
-  Supports Zstd, Huffman, RLE, and raw payload modes via `CompFlags`.
-
-- 📡 **MTU-aware Fragmentation (Planned)**  
-  Future framing module (`CompactWire`) will support segmented frames and CRC.
+The goal is **fast, reproducible encoding/decoding** with fewer allocations(zero-allocs).
 
 ---
 
-## 📦 Core Modules
+## Features
 
-| Component       | Purpose                                                  |
-| --------------- | -------------------------------------------------------- |
-| `dbflat`        | Layout-aware record encoder/decoder                      |
-| `Encoder`       | Compresses + encodes fields into chosen format           |
-| `Decoder`       | Efficient field access, hotfield reads, tagwalk scanner  |
-| `Inspector`     | Field introspection, partial decoding, lazy scanning     |
-| `Builder`       | API for appending structured fields into reusable buffer |
-| `ControlFrames` | Runtime signal layer for coordination & recovery (WIP)   |
+- **Struct encoding/decoding**: Works with exported fields of Go structs.
+- **Slices and strings**: Handles variable-length data with varint length prefixes.
+- **Presence bitmap**: Marks which fields are present.
+- **Unsafe string mode**: Zero-copy decoding of strings (caller must ensure buffer lifetime).
+- **Fuzz & property-based tests**: Ensures round-trip correctness.
 
 ---
 
-## 🚀 Getting Started
+## Installation
 
 ```bash
-go get github.com/rawbytedev/Fractus
+go get github.com/rawbytedev/fractus
 ```
 
-### 🔐 Define Fields
+---
+
+## Usage
+
+### Encode / Decode
 
 ```go
-fields := []dbflat.FieldValue{
-    {Tag: 1, CompFlags:0x8000, Payload: []byte("hello")},
-    {Tag: 2, CompFlags:0x8000, Payload: []byte("world")},
+package main
+
+import (
+    "fmt"
+    "github.com/rawbytedev/fractus"
+)
+
+type Example struct {
+    Name   string
+    Age    int32
+    Scores []float64
+}
+
+func main() {
+    f := &fractus{}
+
+    val := Example{Name: "Alice", Age: 30, Scores: []float64{95.5, 88.0}}
+    data, err := f.Encode(val)
+    if err != nil {
+        panic(err)
+    }
+
+    var out Example
+    if err := f.Decode(data, &out); err != nil {
+        panic(err)
+    }
+
+    fmt.Printf("Decoded: %+v\n", out)
 }
 ```
 
-### 🔧 Encode in Full VTable Mode
-
-```go
-enc := dbflat.NewEncoder()
-record, err := enc.EncodeRecordFull(0xDEAD, []uint16{1}, fields)
-```
-
-### 🧠 Decode with Schema-Awareness
-
-```go
-dec := dbflat.NewDecoder()
-parsed, err := dec.DecodeRecord(record, nil)
-fmt.Println(string(parsed[1])) // → "hello"
-```
-
-### 🔍 Inspect Tag-Walk Field Stream
-
-```go
-ins, _ := dbflat.Inspect(record, dec)
-value := ins.GetFieldD(2)
-```
-
 ---
 
-### 🔁 Encoding Modes
+## Benchmarks
 
-| Mode          | API Function          | Lookup        | Notes                                    |
-|:-------------:|:---------------------:|:-------------:|:----------------------------------------:|
-| `Full VTable` | EncodeRecordFull()    | O(1)/O(log n) | Best for introspection + large schemas   |
-| `Hot VTable`  | EncodeRecordHot()     | O(1)+stream   | Up to 8 hotfields with fast field jumps  |
-| `Tag-Walk`    | EncodeRecordTagWalk() | O(n)          | Streamable; great for logs and telemetry |
-
-Each mode adapts layout and header flags automatically.
-
----
-
-📄 Header Flags
-
-Fractus uses bitwise flags to signal layout configuration:
-
-```go
-const (
-  FlagPadding       = 0x0001 // Align payload to 8B
-  FlagNoSchemaID    = 0x0002 // Schema ID omitted
-  FlagModeHotVtable = 0x0004
-  FlagModeNoVtable  = 0x0008
-  FlagModeTagWalk   = 0x0010
-)
-```
-
-Use combinations like:
-
-```go
-flags := FlagModeHotVtable | FlagPadding
-```
-
----
-
-🧪 Benchmarks & Testing
-
-Run performance benchmarks via:
+Fractus aims to minimize allocations and improve throughput:
 
 ```bash
-cd pkg/dbflat
-go test -bench=.
+go test -bench=. -benchmem
 ```
 
-Highlights:
-
-- 💨 0 allocs per encode/decode
-- ⚙️ Hotfield lookup ~O(1)
-- 🎯 Streaming decode available via Inspector.Next()
-- 🧪 Verified against compressed + fixed-width payloads
+With buffer pooling and unsafe string mode, allocations can be reduced further.
 
 ---
 
-🧰 Debug & Utilities
+## Testing
 
-- Builder: Append + commit fields into reusable buffer
-- Inspector: Scan, peek, and retrieve fields dynamically
-- ReadHotField: Fast-path access for hotfields
-- DecodeRecordTagWalk: Line-by-line decode for streamable records
-- WriteUint24, writeVarUint, ReadAny: Payload converters
+Fractus includes fuzz and property-based tests:
 
----
+```bash
+go test ./...
+```
 
-📜 Protocol Philosophy
-
-Fractus is built on the belief that:
-
-- Traceability and reversibility are trust primitives
-- Schema shouldn't be metadata—it should be accessible, introspectable data
-- Decoding should be partial, lazy, and composable
-- Layouts should reveal intention—not obscure it
+- `FuzzEncodeDecode` ensures round-trip correctness across mixed types.
+- `quick.Check` validates encoding/decoding for random structs.
+- Error cases are tested (non-structs, unexported fields, wrong pointer types).
 
 ---
 
-📈 Roadmap Highlights
+## Important
 
-- [x] Hotfield + TagWalk decoding synergy
-- [x] Header-mode routing via flag bits
-- [x] Compression and array-length support
-- [x] Inspector with tag-based scanning
-- [x] Benchmarks with heavy & skinny payloads
-- [ ] CompactWire framing with CRC + chunking
-- [ ] Runtime schema negotiation tools
-- [ ] CLI tool: fractus inspect, fractus encode, etc.
+- **UnsafeStrings**: When enabled, decoded strings reference the original buffer.  
+  Ensure the buffer outlives the string usage, or disable this option for safe copies.
+- **Unexported fields**: Skipped during encoding.
+- **Unsupported types**: Maps, interfaces, complex numbers, and nested slices (except `[]byte`) are not supported.
 
 ---
 
-🤝 Contributing
+## Roadmap
 
-Pull requests are welcome. Features, flags, format diagrams, and spec clarifications are even better. You can help Fractus become the Rosetta Stone of wire formats.
-
----
-
-🧑‍🚀 Author
-
-Crafted with surgical care by @rawbytedev
+- Buffer pooling via `sync.Pool` to reduce allocations.
+- Type metadata caching to avoid repeated reflection.
+- Code generation for zero-reflection encoders/decoders.
+- Distinguish absent vs zero-value.
 
 ---
 
-📄 License
+## License
 
-MIT
+MIT License. See [LICENSE](LICENSE) for details.
