@@ -1,10 +1,15 @@
 package fractus
 
 import (
+	"errors"
 	"reflect"
 	"unsafe"
 )
-
+var (
+	ErrNotStruct    = errors.New("expected struct")
+	ErrNotStructPtr = errors.New("expected pointer to struct")
+	ErrUnsupported  = errors.New("unsupported type")
+)
 type Options struct {
 	UnsafeStrings bool // zero-copy strings via unsafe; caller must ensure buf lifetime
 }
@@ -17,7 +22,7 @@ type Fractus struct {
 }
 
 // Header: varint N
-// Presence: ceil(N/8) bytes
+// Presence: (N/8) bytes
 // VarOffsets: varint per variable present field
 // Body: fields in declaration order
 
@@ -64,7 +69,7 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 	// presence bitmap
 	f.pres = make([]byte, (n+7)/8)
 	for i := range fields {
-		// treat zero values of fixed fields as "present" (carry zeros), variable fields absent if empty tag "opt" and zero-value? Up to you.
+		// zero values of fixed fields as "present" (carry zeros), variable fields absent
 		// For now: everything present.
 		f.pres[i/8] |= 1 << (uint(i) % 8)
 	}
@@ -77,7 +82,7 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 
 	for _, fi := range fields {
 		if fi.isVar {
-			// record offset to start (relative to body start)
+			// record offset to start
 			varOffsets = append(varOffsets, curr)
 			switch fi.kind {
 			case reflect.String:
@@ -92,7 +97,7 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 					f.body = append(f.body, b...)
 					curr += varintLen(uint64(len(b))) + len(b)
 				} else {
-					// lists: encode count then elements (simple mode)
+					// lists: encode count then elements
 					l := fi.val.Len()
 					f.body = writeVarUint(f.body, uint64(l))
 					curr += varintLen(uint64(l))
@@ -135,7 +140,7 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 	return f.buf, nil
 }
 
-// Decode sketch: compute fixed offsets; read varOffsets; slice body.
+// Decode: compute fixed offsets; read varOffsets; slice body.
 // Unsafe string mode returns string without copy.
 func (f *Fractus) Decode(data []byte, out any) error {
 	v := reflect.ValueOf(out)

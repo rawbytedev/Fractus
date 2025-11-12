@@ -2,7 +2,6 @@ package fractus
 
 import (
 	"encoding/binary"
-	"errors"
 	"math"
 	"reflect"
 )
@@ -138,12 +137,6 @@ func readVarUint(b []byte) (uint64, int) {
 	}
 	return 0, 0
 }
-
-var (
-	ErrNotStruct    = errors.New("expected struct")
-	ErrNotStructPtr = errors.New("expected pointer to struct")
-	ErrUnsupported  = errors.New("unsupported type")
-)
 
 func bitPresent(p []byte, idx int) bool {
 	return p[idx/8]&(1<<(uint(idx)%8)) != 0
