@@ -1,6 +1,7 @@
-# 🧬 Fractus
+# Fractus
 
-**Fractus** is a zero-allocation, introspectable encoding framework built for schema-evolving protocols and decentralized systems. Powered by its core engine `dbflat`, Fractus supports multiple encoding layouts, dynamic header logic, and streaming field inspection—all while keeping performance flat and GC-free.
+**Fractus** is a zero-allocation, introspectable encoding framework built for schema-evolving protocols and decentralized systems.
+Fractus supports multiple encoding layouts, dynamic header logic, and streaming field inspection—all while keeping performance flat and GC-free.
 
 > Because protocol design deserves as much care as protocol logic.
 

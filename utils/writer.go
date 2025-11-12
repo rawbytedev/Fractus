@@ -1,13 +1,30 @@
-package dbflat
+package utils
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math"
 )
 
-// Helper functions to encode int into byte slices
+type FieldType int
+
+const (
+	TypeBool FieldType = iota
+	TypeBytes
+	TypeFloat32
+	TypeFloat64
+	TypeInt8
+	TypeInt16
+	TypeInt32
+	TypeInt64
+	TypeString
+	TypeUint8
+	TypeUint16
+	TypeUint32
+	TypeUint64
+)
+
+// Helper functions to turn any value to bytes
 func Write(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case uint8:
@@ -57,7 +74,7 @@ func Write(value any) ([]byte, error) {
 	}
 }
 
-// read byte and turns into corresponding type
+// From bytes to any
 func ReadAny(buf []byte, typ FieldType) (any, error) {
 	switch typ {
 	case TypeBool:
@@ -93,19 +110,8 @@ func ReadAny(buf []byte, typ FieldType) (any, error) {
 	}
 }
 
-func WriteUint24(v uint32) []byte {
-	if v > 0xFFFFFF {
-		panic("Value too large for uint24")
-	}
-	return []byte{
-		byte(v),
-		byte(v >> 8),
-		byte(v >> 16),
-	}
-}
-
-// writeVarUint writes a u64 as LEB128 varint.
-func writeVarUint(buf []byte, x uint64) []byte {
+// writeVarUint writes a u8 as LEB128 varint.
+func WriteVarUint(buf []byte, x uint64) []byte {
 	for x >= 0x80 {
 		buf = append(buf, byte(x)|0x80)
 		x >>= 7
@@ -115,7 +121,7 @@ func writeVarUint(buf []byte, x uint64) []byte {
 }
 
 // readVarUint reads a varint from buf, returns value and bytes read.
-func readVarUint(b []byte) (uint64, int) {
+func ReadVarUint(b []byte) (uint64, int) {
 	var x uint64
 	var s uint
 	for i, c := range b {
@@ -127,20 +133,6 @@ func readVarUint(b []byte) (uint64, int) {
 	}
 	return 0, 0 // truncated
 }
-
-// uint24 helpers
-func writeUint24(buf *bytes.Buffer, v uint32) {
-	buf.WriteByte(byte(v))
-	buf.WriteByte(byte(v >> 8))
-	buf.WriteByte(byte(v >> 16))
-}
-
-func readUint24(b []byte) uint32 {
-	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16
-}
-
 func align(off, a int) int {
 	return off + ((a - (off % a)) % a)
 }
-
-// zigzag helper
