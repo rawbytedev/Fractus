@@ -24,7 +24,7 @@ jobs:
       - name: Run benchmarks
         run: |
           echo "### Test Results" >> $GITHUB_STEP_SUMMARY
-          go test ./... -v | tee tests.log >> $GITHUB_STEP_SUMMARY
+          go test ./... -v | tee bench.log >> $GITHUB_STEP_SUMMARY
       - name: Generate README with results
         run: |
           cp README.md README.results.md
