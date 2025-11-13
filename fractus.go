@@ -1,15 +1,19 @@
 package fractus
 
 import (
+	"encoding/binary"
 	"errors"
+	"math"
 	"reflect"
 	"unsafe"
 )
+
 var (
 	ErrNotStruct    = errors.New("expected struct")
 	ErrNotStructPtr = errors.New("expected pointer to struct")
 	ErrUnsupported  = errors.New("unsupported type")
 )
+
 type Options struct {
 	UnsafeStrings bool // zero-copy strings via unsafe; caller must ensure buf lifetime
 }
@@ -19,6 +23,19 @@ type Fractus struct {
 	buf  []byte
 	pres []byte
 	body []byte
+	plan map[reflect.Type]FieldPlan
+	init bool
+	_tmp []byte
+}
+type FieldPlan struct {
+	count int
+	field []fld
+}
+type fld struct {
+	idx   int
+	kind  reflect.Kind
+	val   reflect.Value
+	isVar bool
 }
 
 // Header: varint N
@@ -37,46 +54,46 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 
 	t := v.Type()
 	N := t.NumField()
-
-	// gather fields (exported only)
-	type fld struct {
-		idx   int
-		kind  reflect.Kind
-		val   reflect.Value
-		isVar bool
+	if f.plan == nil {
+		f.plan = make(map[reflect.Type]FieldPlan)
 	}
+	pl, ok := f.plan[t]
 	fields := make([]fld, 0, N)
-	for i := 0; i < N; i++ {
-		sf := t.Field(i)
-		if sf.PkgPath != "" && !sf.Anonymous {
-			continue // skip unexported
+
+	if ok {
+		fields = pl.field
+		for i := 0; i < pl.count; i++ {
+			fields[i].val = v.Field(fields[i].idx)
 		}
-		k := sf.Type.Kind()
-		fields = append(fields, fld{
-			idx:   i,
-			kind:  k,
-			val:   v.Field(i),
-			isVar: !isFixedKind(k),
-		})
+	} else {
+		for i := 0; i < N; i++ {
+			sf := t.Field(i)
+			if sf.PkgPath != "" && !sf.Anonymous {
+				continue // skip unexported
+			}
+			k := sf.Type.Kind()
+			fields = append(fields, fld{
+				idx:   i,
+				kind:  k,
+				val:   v.Field(i),
+				isVar: !isFixedKind(k),
+			})
+		}
+		f.plan[t] = FieldPlan{field: fields, count: len(fields)}
 	}
-
 	n := len(fields)
-	f.buf = make([]byte, 0, n*2+32)
-
+	f.Reset(n)
+	// presence bitmap
+	f.pres = make([]byte, (n+7)/8)
 	// write N
 	f.buf = writeVarUint(f.buf, uint64(n))
 
-	// presence bitmap
-	f.pres = make([]byte, (n+7)/8)
 	for i := range fields {
-		// zero values of fixed fields as "present" (carry zeros), variable fields absent
 		// For now: everything present.
 		f.pres[i/8] |= 1 << (uint(i) % 8)
 	}
 	f.buf = append(f.buf, f.pres...)
 
-	// collect variable field offsets while building body
-	f.body = make([]byte, 0, 64)
 	varOffsets := make([]int, 0, n)
 	curr := 0
 
@@ -105,7 +122,7 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 						elem := fi.val.Index(j)
 						k := elem.Kind()
 						if isFixedKind(k) {
-							f.body = writeFixed(f.body, elem)
+							f.writeFixed(elem)
 							curr += fixedSize(k)
 						} else if k == reflect.String {
 							s := elem.String()
@@ -126,7 +143,7 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 				return nil, ErrUnsupported
 			}
 		} else {
-			f.body = writeFixed(f.body, fi.val)
+			f.writeFixed(fi.val)
 			curr += fixedSize(fi.kind)
 		}
 	}
@@ -140,9 +157,67 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 	return f.buf, nil
 }
 
+func (f *Fractus) writeFixed(v reflect.Value) {
+	// necessary but we lose zero allocs
+	// will research another solution
+	if f._tmp == nil {
+		f._tmp = make([]byte, 8)
+	}
+	switch v.Kind() {
+	case reflect.Bool:
+		if v.Bool() {
+			f.body = append(f.body, 1)
+		}
+		f.body = append(f.body, 0)
+	case reflect.Int8:
+		f.body = append(f.body, byte(v.Int()))
+	case reflect.Uint8:
+		f.body = append(f.body, byte(v.Uint()))
+	case reflect.Int16:
+		binary.LittleEndian.PutUint16(f._tmp, uint16(v.Int()))
+		f.body = append(f.body, f._tmp[:2]...)
+	case reflect.Uint16:
+		binary.LittleEndian.PutUint16(f._tmp, uint16(v.Uint()))
+		f.body = append(f.body, f._tmp[:2]...)
+	case reflect.Int32:
+		binary.LittleEndian.PutUint32(f._tmp, uint32(v.Int()))
+		f.body = append(f.body, f._tmp[:4]...)
+	case reflect.Uint32:
+		binary.LittleEndian.PutUint32(f._tmp, uint32(v.Uint()))
+		f.body = append(f.body, f._tmp[:4]...)
+	case reflect.Int64:
+		binary.LittleEndian.PutUint64(f._tmp, uint64(v.Int()))
+		f.body = append(f.body, f._tmp[:8]...)
+	case reflect.Uint64:
+		binary.LittleEndian.PutUint64(f._tmp, v.Uint())
+		f.body = append(f.body, f._tmp[:8]...)
+	case reflect.Float32:
+		binary.LittleEndian.PutUint32(f._tmp, math.Float32bits(float32(v.Float())))
+		f.body = append(f.body, f._tmp[:4]...)
+	case reflect.Float64:
+		binary.LittleEndian.PutUint64(f._tmp, math.Float64bits(v.Float()))
+		f.body = append(f.body, f._tmp[:8]...)
+	default:
+		panic("not fixed")
+	}
+}
+func (f *Fractus) Reset(n int) {
+	if f.init && n == 0 {
+		f.buf = f.buf[:0]
+		f.pres = f.pres[:0]
+		f.body = f.body[:0]
+	} else { // first run
+		f.init = true
+		f.buf = make([]byte, 0, n*2+32)
+		// collect variable field offsets while building body
+		f.body = make([]byte, 0, 64)
+	}
+}
+
 // Decode: compute fixed offsets; read varOffsets; slice body.
 // Unsafe string mode returns string without copy.
 func (f *Fractus) Decode(data []byte, out any) error {
+	f.Reset(0)
 	v := reflect.ValueOf(out)
 	if v.Kind() != reflect.Pointer || v.Elem().Kind() != reflect.Struct {
 		return ErrNotStructPtr
@@ -160,23 +235,24 @@ func (f *Fractus) Decode(data []byte, out any) error {
 	pLen := int((N + 7) / 8)
 	pres := data[cursor : cursor+pLen]
 	cursor += pLen
-
-	// build field meta
-	type fld struct {
-		idx   int
-		kind  reflect.Kind
-		isVar bool
+	if f.plan == nil {
+		f.plan = make(map[reflect.Type]FieldPlan)
 	}
-	fields := make([]fld, 0, int(N))
-	for i := 0; i < t.NumField(); i++ {
-		sf := t.Field(i)
-		if sf.PkgPath != "" && !sf.Anonymous {
-			continue
-		}
-		k := sf.Type.Kind()
-		fields = append(fields, fld{i, k, !isFixedKind(k)})
-		if len(fields) == int(N) {
-			break
+	pl, ok := f.plan[t]
+	fields := make([]fld, 0, N)
+	if ok {
+		fields = pl.field
+	} else {
+		for i := 0; i < t.NumField(); i++ {
+			sf := t.Field(i)
+			if sf.PkgPath != "" && !sf.Anonymous {
+				continue
+			}
+			k := sf.Type.Kind()
+			fields = append(fields, fld{idx: i, kind: k, isVar: !isFixedKind(k)})
+			if len(fields) == int(N) {
+				break
+			}
 		}
 	}
 
@@ -190,7 +266,7 @@ func (f *Fractus) Decode(data []byte, out any) error {
 		}
 	}
 
-	body := data[cursor:]
+	f.body = data[cursor:]
 	// pass 1: compute fixed positions by walking body
 	bodyPos := 0
 	var varIdx int
@@ -203,8 +279,8 @@ func (f *Fractus) Decode(data []byte, out any) error {
 			start := varOffsets[varIdx]
 			varIdx++
 			// read len
-			lv, n := readVarUint(body[start:])
-			payload := body[start+n : start+n+int(lv)]
+			lv, n := readVarUint(f.body[start:])
+			payload := f.body[start+n : start+n+int(lv)]
 			bodyPos += int(lv) + n
 			switch fi.kind {
 			case reflect.String:
@@ -220,7 +296,7 @@ func (f *Fractus) Decode(data []byte, out any) error {
 				} else {
 					// list decoding (simple mode)
 					// re-run from start: first varint is count, then elements
-					cnt, n2 := readVarUint(body[start:])
+					cnt, n2 := readVarUint(f.body[start:])
 					pos := start + n2
 					elemK := fv.Type().Elem().Kind()
 					slice := reflect.MakeSlice(fv.Type(), int(cnt), int(cnt))
@@ -228,17 +304,17 @@ func (f *Fractus) Decode(data []byte, out any) error {
 						ev := slice.Index(i)
 						if isFixedKind(elemK) {
 							sz := fixedSize(elemK)
-							setFixed(ev, body[pos:pos+sz], elemK)
+							setFixed(ev, f.body[pos:pos+sz], elemK)
 							pos += sz
 						} else if elemK == reflect.String {
-							ll, ln := readVarUint(body[pos:])
+							ll, ln := readVarUint(f.body[pos:])
 							pos += ln
-							ev.SetString(string(body[pos : pos+int(ll)]))
+							ev.SetString(string(f.body[pos : pos+int(ll)]))
 							pos += int(ll)
 						} else if elemK == reflect.Uint8 {
-							ll, ln := readVarUint(body[pos:])
+							ll, ln := readVarUint(f.body[pos:])
 							pos += ln
-							ev.SetBytes(body[pos : pos+int(ll)])
+							ev.SetBytes(f.body[pos : pos+int(ll)])
 							pos += int(ll)
 						} else {
 							return ErrUnsupported
@@ -249,7 +325,7 @@ func (f *Fractus) Decode(data []byte, out any) error {
 			}
 		} else {
 			sz := fixedSize(fi.kind)
-			setFixed(fv, body[bodyPos:bodyPos+sz], fi.kind)
+			setFixed(fv, f.body[bodyPos:bodyPos+sz], fi.kind)
 			bodyPos += sz
 		}
 	}
