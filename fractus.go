@@ -167,8 +167,9 @@ func (f *Fractus) writeFixed(v reflect.Value) {
 	case reflect.Bool:
 		if v.Bool() {
 			f.body = append(f.body, 1)
+		}else{
+			f.body = append(f.body, 0)
 		}
-		f.body = append(f.body, 0)
 	case reflect.Int8:
 		f.body = append(f.body, byte(v.Int()))
 	case reflect.Uint8:
