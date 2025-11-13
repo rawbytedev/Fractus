@@ -2,7 +2,7 @@ name: Test and Benchmark
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main, dev, rawbytedev-patch-workflow-1]
   pull_request:
 
 jobs:
