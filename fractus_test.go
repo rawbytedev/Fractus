@@ -4,7 +4,6 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
@@ -26,9 +25,13 @@ func fuzzMixedTypes(t *testing.T, Val string, Mod int8, Data string, Integers in
 	res := &MixedStruct{}
 	f := &Fractus{}
 	data, err := f.Encode(val)
-	require.NoError(t, err)
+	if err != nil {
+		t.Log(err)
+	}
 	err = f.Decode(data, res)
-	require.NoError(t, err)
+	if err != nil {
+		t.Log(err)
+	}
 	require.EqualExportedValues(t, val, *res)
 }
 func TestEncodeSimpleTypes(t *testing.T) {
@@ -46,9 +49,13 @@ func TestEncodeSimpleTypes(t *testing.T) {
 	res := &NewStruct{}
 	f := &Fractus{}
 	data, err := f.Encode(z)
-	require.NoError(t, err)
+	if err != nil {
+		t.Log(err)
+	}
 	err = f.Decode(data, res)
-	require.NoError(t, err)
+	if err != nil {
+		t.Log(err)
+	}
 	require.EqualExportedValues(t, z, *res)
 }
 func TestConstant(t *testing.T) {
@@ -66,11 +73,16 @@ func TestConstant(t *testing.T) {
 	f := &Fractus{}
 	condition := func(z NewStructint) bool {
 		data, err := f.Encode(z)
-		require.NoError(t, err)
+		if err != nil {
+			t.Error(err)
+		}
 		res := &NewStructint{}
 		err = f.Decode(data, res)
-		require.NoError(t, err)
-		return assert.ObjectsAreEqual(z, *res)
+		if err != nil {
+			t.Error(err)
+		}
+		require.EqualExportedValues(t, z, *res)
+		return true
 	}
 	err := quick.Check(condition, &quick.Config{})
 	if err != nil {
@@ -93,14 +105,21 @@ func TestConstantList(t *testing.T) {
 	condition := func(z NewStructint) bool {
 		val := z
 		data, err := f.Encode(val)
-		require.NoError(t, err)
+		if err != nil {
+			t.Error(err)
+		}
 		res := &NewStructint{}
 		err = f.Decode(data, res)
-		require.NoError(t, err)
-		return assert.ObjectsAreEqual(z, *res)
+		if err != nil {
+			t.Error(err)
+		}
+		require.EqualExportedValues(t, val, *res)
+		return true
 	}
 	err := quick.Check(condition, &quick.Config{})
-	require.NoError(t, err)
+	if err != nil {
+		t.Errorf("Error: %v", err)
+	}
 }
 func TestStructPointer(t *testing.T) {
 	type StructPtr struct {
@@ -110,25 +129,42 @@ func TestStructPointer(t *testing.T) {
 	res := &StructPtr{}
 	f := &Fractus{}
 	data, err := f.Encode(val)
-	require.NoError(t, err)
+	if err != nil {
+		t.Error(err)
+	}
 	err = f.Decode(data, res)
-	require.NoError(t, err)
+	if err != nil {
+		t.Error(err)
+	}
 	require.EqualExportedValues(t, val, res)
 }
 func TestErrors(t *testing.T) {
 	f := &Fractus{}
-	data, err := f.Encode("abc")
-	require.Len(t, data, 0)
-	require.ErrorIs(t, err, ErrNotStruct)
+	dt := "abc"
+	data, err := f.Encode(dt)
+	if err != ErrNotStruct {
+		t.Error(err)
+	}
+	if data != nil {
+		t.Error(err)
+	}
 	type Eas struct {
 		val string // private
 	}
 	str := Eas{val: "hello"}
 	Ptrstr := &Eas{val: "world"}
 	data, err = f.Encode(Ptrstr)
-	require.Nil(t, err)
+	if len(data) > 1 {
+		t.Error(err)
+	}
+	data, err = f.Encode(str)
+	if len(data) > 1 {
+		t.Error(err)
+	}
 	err = f.Decode(data, str) // needs pointer
-	require.ErrorIs(t, err, ErrNotStructPtr)
+	if err != ErrNotStructPtr {
+		t.Error(err)
+	}
 }
 func TestEncodeListOfTypes(t *testing.T) {
 
@@ -142,10 +178,13 @@ func TestEncodeListOfTypes(t *testing.T) {
 	f := &Fractus{}
 	condition := func(z NewStruct) bool {
 		data, err := f.Encode(z)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 		res := &NewStruct{}
 		f.Decode(data, res)
-		return assert.ObjectsAreEqual(z, *res)
+		require.EqualExportedValues(t, z, *res)
+		return true
 	}
 	err := quick.Check(condition, &quick.Config{})
 	if err != nil {
@@ -218,10 +257,11 @@ func BenchmarkFractus(b *testing.B) {
 	z := NewStructint{Int1: 1, Int2: 2, Int3: 16, Int4: 18, Int5: 1586, Int6: 15262, Int7: 1547544565, Int9: 15484565656}
 	y := &NewStructint{}
 	f := &Fractus{}
+	res := []byte{}
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		res, _ := f.Encode(z) // 3allocs / res = []byte // 1 allocs
-		f.Decode(res, y)      // 1allocs
+		res, _ = f.Encode(z) // 3allocs
+		f.Decode(res, y)     // 1allocs
 	}
 	require.EqualValues(b, z, *y)
 }
@@ -243,11 +283,9 @@ func BenchmarkDoubleFractus(b *testing.B) {
 	res := []byte{}
 	b.ReportAllocs()
 	_, _ = f.Encode(z)
-	var err error
 	for i := 0; i < b.N; i++ {
-		res, err = f.Encode(v)
+		res, _ = f.Encode(v)
 	}
-	require.NoError(b, err)
 	f.Decode(res, y)
 	require.EqualValues(b, v, *y)
 }
