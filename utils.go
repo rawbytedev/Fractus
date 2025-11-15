@@ -77,7 +77,7 @@ func writeFixed(dst []byte, v reflect.Value) []byte {
 		binary.LittleEndian.PutUint64(tmp, math.Float64bits(v.Float()))
 		return append(dst, tmp...)
 	default:
-		panic("not fixed")
+		panic(ErrUnsupported)
 	}
 }
 

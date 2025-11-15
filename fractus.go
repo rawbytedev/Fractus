@@ -21,10 +21,8 @@ type Options struct {
 type Fractus struct {
 	Opts Options
 	buf  []byte
-	pres []byte
 	body []byte
 	plan map[reflect.Type]FieldPlan
-	init bool
 	_tmp []byte
 }
 type FieldPlan struct {
@@ -34,7 +32,6 @@ type FieldPlan struct {
 type fld struct {
 	idx   int
 	kind  reflect.Kind
-	val   reflect.Value
 	isVar bool
 }
 
@@ -62,9 +59,6 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 
 	if ok {
 		fields = pl.field
-		for i := 0; i < pl.count; i++ {
-			fields[i].val = v.Field(fields[i].idx)
-		}
 	} else {
 		for i := 0; i < N; i++ {
 			sf := t.Field(i)
@@ -75,7 +69,6 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 			fields = append(fields, fld{
 				idx:   i,
 				kind:  k,
-				val:   v.Field(i),
 				isVar: !isFixedKind(k),
 			})
 		}
@@ -83,16 +76,8 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 	}
 	n := len(fields)
 	f.Reset(n)
-	// presence bitmap
-	f.pres = make([]byte, (n+7)/8)
 	// write N
 	f.buf = writeVarUint(f.buf, uint64(n))
-
-	for i := range fields {
-		// For now: everything present.
-		f.pres[i/8] |= 1 << (uint(i) % 8)
-	}
-	f.buf = append(f.buf, f.pres...)
 
 	varOffsets := make([]int, 0, n)
 	curr := 0
@@ -100,26 +85,26 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 	for _, fi := range fields {
 		if fi.isVar {
 			// record offset to start
-			varOffsets = append(varOffsets, curr)
+			varOffsets = append(varOffsets, len(f.body))
 			switch fi.kind {
 			case reflect.String:
-				s := fi.val.String()
+				s := v.Field(fi.idx).String()
 				f.body = writeVarUint(f.body, uint64(len(s)))
 				f.body = append(f.body, s...)
 				curr += varintLen(uint64(len(s))) + len(s)
 			case reflect.Slice:
-				if fi.val.Type().Elem().Kind() == reflect.Uint8 {
-					b := fi.val.Bytes()
+				if v.Field(fi.idx).Type().Elem().Kind() == reflect.Uint8 {
+					b := v.Field(fi.idx).Bytes()
 					f.body = writeVarUint(f.body, uint64(len(b)))
 					f.body = append(f.body, b...)
 					curr += varintLen(uint64(len(b))) + len(b)
 				} else {
 					// lists: encode count then elements
-					l := fi.val.Len()
+					l := v.Field(fi.idx).Len()
 					f.body = writeVarUint(f.body, uint64(l))
 					curr += varintLen(uint64(l))
 					for j := 0; j < l; j++ {
-						elem := fi.val.Index(j)
+						elem := v.Field(fi.idx).Index(j)
 						k := elem.Kind()
 						if isFixedKind(k) {
 							f.writeFixed(elem)
@@ -143,7 +128,7 @@ func (f *Fractus) Encode(val any) ([]byte, error) {
 				return nil, ErrUnsupported
 			}
 		} else {
-			f.writeFixed(fi.val)
+			f.writeFixed(v.Field(fi.idx))
 			curr += fixedSize(fi.kind)
 		}
 	}
@@ -167,7 +152,7 @@ func (f *Fractus) writeFixed(v reflect.Value) {
 	case reflect.Bool:
 		if v.Bool() {
 			f.body = append(f.body, 1)
-		}else{
+		} else {
 			f.body = append(f.body, 0)
 		}
 	case reflect.Int8:
@@ -203,12 +188,10 @@ func (f *Fractus) writeFixed(v reflect.Value) {
 	}
 }
 func (f *Fractus) Reset(n int) {
-	if f.init && n == 0 {
+	if f.buf != nil && n == 0 {
 		f.buf = f.buf[:0]
-		f.pres = f.pres[:0]
 		f.body = f.body[:0]
 	} else { // first run
-		f.init = true
 		f.buf = make([]byte, 0, n*2+32)
 		// collect variable field offsets while building body
 		f.body = make([]byte, 0, 64)
@@ -232,10 +215,6 @@ func (f *Fractus) Decode(data []byte, out any) error {
 		return nil
 	}
 	cursor := nHdr
-	// presence
-	pLen := int((N + 7) / 8)
-	pres := data[cursor : cursor+pLen]
-	cursor += pLen
 	if f.plan == nil {
 		f.plan = make(map[reflect.Type]FieldPlan)
 	}
@@ -268,13 +247,9 @@ func (f *Fractus) Decode(data []byte, out any) error {
 	}
 
 	f.body = data[cursor:]
-	// pass 1: compute fixed positions by walking body
 	bodyPos := 0
 	var varIdx int
 	for _, fi := range fields {
-		if !bitPresent(pres, fi.idx) {
-			continue
-		}
 		fv := dst.Field(fi.idx)
 		if fi.isVar {
 			start := varOffsets[varIdx]
