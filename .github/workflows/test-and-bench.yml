@@ -5,6 +5,8 @@ on:
   pull_request:
   
 
+permissions:
+  contents: read
 jobs:
   test-and-bench:
     runs-on: ubuntu-latest
