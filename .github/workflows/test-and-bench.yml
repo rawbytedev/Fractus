@@ -1,9 +1,14 @@
 name: Test and Benchmark
-
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  
 on:
   push:
     branches: [ main, dev, rawbytedev-patch-workflow-1 ]
   pull_request:
+  
 
 jobs:
   test-and-bench:
