@@ -1,0 +1,59 @@
+name: Test and Benchmark 
+on:
+  push:
+    branches: [ main, dev, rawbytedev-patch-workflow-1 ]
+  pull_request:
+  
+
+permissions:
+  contents: read
+jobs:
+  test-and-bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Run tests
+        run: |
+          go test ./... -v | tee tests.log
+
+      - name: Run benchmarks
+        run: |
+          go test -bench=. -benchmem ./... | tee bench.log
+
+      - name: Format results into tables
+        run: |
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          cat tests.log >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '| Benchmark | Iterations | Time/op | Bytes/op | Allocs/op |' >> $GITHUB_STEP_SUMMARY
+          echo '|-----------|------------|---------|----------|-----------|' >> $GITHUB_STEP_SUMMARY
+          awk '/^Benchmark/ {printf "| %s | %s | %s | %s | %s |\n", $1, $2, $3, $5, $7}' bench.log >> $GITHUB_STEP_SUMMARY
+
+      - name: Generate README with results
+        run: |
+          cp README.md README.results.md
+          echo "" >> README.results.md
+          echo "## CI Test Results" >> README.results.md
+          cat tests.log >> README.results.md
+          echo "" >> README.results.md
+          echo "## CI Benchmark Results" >> README.results.md
+          echo "" >> README.results.md
+          echo '| Benchmark | Iterations | Time/op | Bytes/op | Allocs/op |' >> README.results.md
+          echo '|-----------|------------|---------|----------|-----------|' >> README.results.md
+          awk '/^Benchmark/ {printf "| %s | %s | %s | %s | %s |\n", $1, $2, $3, $5, $7}' bench.log >> README.results.md
+
+      - name: Upload README artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: README-with-results
+          path: README.results.md

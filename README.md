@@ -89,8 +89,8 @@ Fractus includes fuzz and property-based tests:
 go test ./...
 ```
 
-- `FuzzEncodeDecode` ensures round-trip correctness across mixed types.
-- `quick.Check` validates encoding/decoding for random structs.
+- `FuzzEncodeDecode` ensures correctness across mixed types.
+- `quick.Check` encoding/decoding for random structs.
 - Error cases are tested (non-structs, unexported fields, wrong pointer types).
 
 ---
@@ -101,15 +101,7 @@ go test ./...
   Ensure the buffer outlives the string usage, or disable this option for safe copies.
 - **Unexported fields**: Skipped during encoding.
 - **Unsupported types**: Maps, interfaces, complex numbers, and nested slices (except `[]byte`) are not supported.
-
----
-
-## Roadmap
-
-- Buffer pooling via `sync.Pool` to reduce allocations.
-- Type metadata caching to avoid repeated reflection.
-- Code generation for zero-reflection encoders/decoders.
-- Distinguish absent vs zero-value.
+- Dev version achieve 0 allocs encoding/decoding(still experimental): [https://rawbytedev/fractus/dev](https://github.com/rawbytedev/Fractus/tree/dev)
 
 ---
 
