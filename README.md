@@ -1,5 +1,5 @@
 # Fractus
-
+![Test and Benchmark](https://github.com/rawbytedev/Fractus/actions/workflows/test-and-bench.yml/badge.svg)
 Fractus is a lightweight, serialization library for Go.  
 It encodes and decodes structs into a compact binary format with support for:
 
