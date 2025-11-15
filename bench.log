@@ -1,0 +1,13 @@
+goos: linux
+goarch: amd64
+pkg: fractus
+cpu: AMD EPYC 7763 64-Core Processor                
+BenchmarkZeroAllocs-4      	10166853	       119.1 ns/op	     144 B/op	       4 allocs/op
+BenchmarkEncoding-4        	 2388704	       503.1 ns/op	     512 B/op	       6 allocs/op
+BenchmarkDecoding-4        	 1325397	       958.4 ns/op	     512 B/op	      19 allocs/op
+BenchmarkFractus-4         	 2970922	       402.2 ns/op	     560 B/op	       5 allocs/op
+BenchmarkDoubleFractus-4   	 4217840	       284.4 ns/op	     368 B/op	       4 allocs/op
+BenchmarkYaml-4            	  128212	      9025 ns/op	   16680 B/op	      52 allocs/op
+PASS
+ok  	fractus	9.595s
+?   	fractus/main	[no test files]

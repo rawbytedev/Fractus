@@ -1,0 +1,17 @@
+=== RUN   TestEncodeSimpleTypes
+--- PASS: TestEncodeSimpleTypes (0.00s)
+=== RUN   TestConstant
+--- PASS: TestConstant (0.00s)
+=== RUN   TestConstantList
+--- PASS: TestConstantList (0.00s)
+=== RUN   TestStructPointer
+--- PASS: TestStructPointer (0.00s)
+=== RUN   TestErrors
+--- PASS: TestErrors (0.00s)
+=== RUN   TestEncodeListOfTypes
+--- PASS: TestEncodeListOfTypes (0.00s)
+=== RUN   FuzzEncodeDecode
+--- PASS: FuzzEncodeDecode (0.00s)
+PASS
+ok  	fractus	0.005s
+?   	fractus/main	[no test files]
