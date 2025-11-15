@@ -1,0 +1,37 @@
+name: Coverage
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write 
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Run tests with coverage
+        run: go test ./... -coverprofile=coverage.out
+
+      - name: Generate coverage badge
+        uses: tj-actions/coverage-badge-go@v2
+        with:
+          coverage-file: coverage.out
+          output: coverage-badge.svg
+
+      - name: Commit badge
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coverage-badge.svg
+          git commit -m "Update coverage badge" || echo "No changes"
+          git push
