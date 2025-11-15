@@ -1,9 +1,4 @@
-name: Test and Benchmark
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-  
+name: Test and Benchmark 
 on:
   push:
     branches: [ main, dev, rawbytedev-patch-workflow-1 ]
@@ -60,10 +55,3 @@ jobs:
         with:
           name: README-with-results
           path: README.results.md
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
-          publish_branch: gh-pages
-          force_orphan: true 
