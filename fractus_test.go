@@ -163,8 +163,26 @@ func BenchmarkZeroAllocs(b *testing.B) {
 		_, _ = f.Encode(z)
 	}
 }
-
 func BenchmarkEncoding(b *testing.B) {
+	type NewStruct struct {
+		Val      []string
+		Mod      []int8
+		Integers []int16
+		Float3   []float32
+		Float6   []float64
+	}
+	Val := []string{"azerty", "hello", "world", "random"}
+	z := NewStruct{Val: Val,
+		Mod: []int8{12, 10, 13, 0}, Integers: []int16{100, 250, 300},
+		Float3: []float32{12.13, 16.23, 75.1}, Float6: []float64{100.5, 165.63, 153.5}}
+	f := &Fractus{Opts: Options{UnsafeStrings: false}}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = f.Encode(z)
+	}
+
+}
+func BenchmarkUnsafeEncoding(b *testing.B) {
 	type NewStruct struct {
 		Val      []string
 		Mod      []int8
@@ -184,6 +202,27 @@ func BenchmarkEncoding(b *testing.B) {
 
 }
 func BenchmarkDecoding(b *testing.B) {
+	type NewStruct struct {
+		Val      []string
+		Mod      []int8
+		Integers []int16
+		Float3   []float32
+		Float6   []float64
+	}
+	Val := []string{"azerty", "hello", "world", "random"}
+	z := NewStruct{Val: Val,
+		Mod: []int8{12, 10, 13, 0}, Integers: []int16{100, 250, 300},
+		Float3: []float32{12.13, 16.23, 75.1}, Float6: []float64{100.5, 165.63, 153.5}}
+	y := &NewStruct{}
+	f := &Fractus{Opts: Options{UnsafeStrings: false}}
+	b.ReportAllocs()
+	res, _ := f.Encode(z)
+	for i := 0; i < b.N; i++ {
+		f.Decode(res, y)
+	}
+	require.EqualValues(b, z, *y)
+}
+func BenchmarkUnsafeDecoding(b *testing.B) {
 	type NewStruct struct {
 		Val      []string
 		Mod      []int8
