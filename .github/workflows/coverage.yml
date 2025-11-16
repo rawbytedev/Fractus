@@ -16,7 +16,16 @@ jobs:
       - name: Run tests with coverage
         run: go test ./... -coverprofile=coverage.out
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Generate coverage badge
+        uses: tj-actions/coverage-badge-go@v2
         with:
-          files: coverage.out
+          filename: coverage.out
+          text: Coverage           
+          target: 80               
+      - name: Commit badge
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coverage-badge.svg || true
+          git commit -m "Update coverage badge" || true
+          git push || true
