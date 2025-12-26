@@ -2,6 +2,11 @@
 
 ![Test and Benchmark](https://github.com/rawbytedev/Fractus/actions/workflows/test-and-bench.yml/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/rawbytedev/fractus)](https://goreportcard.com/report/github.com/rawbytedev/fractus)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/rawbytedev/fractus)](https://github.com/rawbytedev/fractus)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/rawbytedev/fractus.svg)](https://pkg.go.dev/github.com/rawbytedev/fractus)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub last commit](https://img.shields.io/github/last-commit/rawbytedev/fractus)](https://github.com/rawbytedev/fractus)
+[![GitHub issues](https://img.shields.io/github/issues/rawbytedev/fractus)](https://github.com/rawbytedev/fractus/issues)
 
 Fractus is a lightweight, serialization library for Go.
 It encodes and decodes structs into a compact binary format focused on
